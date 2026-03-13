@@ -1,254 +1,294 @@
-# Air-Gap Observability Stack
+# Observability Air-Gap Stack
 
-This project provides a **portable observability platform designed for air-gapped environments**.
+A fully self-contained observability platform designed for air-gapped environments.
 
-The stack deploys a full monitoring environment using Docker containers and includes:
+This project packages a complete monitoring stack with all container images so the system can be deployed without internet access.
 
-- Grafana – dashboards and visualization
-- Prometheus – metrics monitoring
-- Loki – log aggregation
-- Tempo – distributed tracing
-- Node Exporter – host metrics
-- Caddy – reverse proxy with internal TLS
+The stack includes:
 
-All services run locally and do **not require internet connectivity after the package is created**.
+Component | Purpose
+--------- | -------
+Grafana | Visualization dashboards
+Prometheus | Metrics collection
+Loki | Log aggregation
+Tempo | Distributed tracing
+Node Exporter | Host metrics
+Caddy | Reverse proxy
+
+Everything runs using Docker Compose and is packaged for offline deployment.
 
 ---
 
 # Architecture
 
-```
-Users
-   │
-   ▼
-Caddy Reverse Proxy (TLS)
-   │
-   ├── Grafana
-   ├── Prometheus
-   ├── Loki
-   └── Tempo
+The observability platform provides unified monitoring for metrics, logs, and traces.
 
-Prometheus
-   └── Node Exporter
-```
+Node Exporter  
+↓  
+Prometheus → Grafana  
+↓  
+Loki (logs)  
+↓  
+Tempo (traces)
 
-All services communicate over an **internal Docker network**.
+Grafana provides dashboards for all telemetry sources.
+
+---
+
+# Deployment Model
+
+Two systems are required.
+
+Build System (Internet Connected)
+
+Used to download container images and build the air-gap package.
+
+Target System (Air-Gapped)
+
+Used to install and run the observability stack.
+
+---
+
+# Step 1 — Build the Air-Gap Package
+
+Run on the internet-connected system:
+
+sudo ./build-airgap-package.sh
+
+The builder will:
+
+- Pull required container images
+- Export them into a portable bundle
+- Package configuration files
+- Generate the deployment archive
+
+Output file:
+
+observability-airgap-package.tar
+
+---
+
+# Step 2 — Transfer the Package
+
+Move the package to the air-gapped system.
+
+Example:
+
+scp observability-airgap-package.tar user@server:/root
+
+Or transfer via removable media.
+
+---
+
+# Step 3 — Extract the Package
+
+On the air-gapped machine:
+
+tar -xvf observability-airgap-package.tar  
+cd observability-airgap-package
+
+Directory structure:
+
+observability-airgap-package  
+├── observability  
+├── docker-compose.yml  
+├── prometheus.yml  
+├── Caddyfile  
+├── images  
+│   └── observability-images.tar  
+
+---
+
+# Step 4 — Install the Stack
+
+Run the installer:
+
+sudo ./observability install
+
+The installer automatically:
+
+- Creates required directories
+- Fixes container permissions
+- Handles SELinux labeling
+- Generates Tempo configuration
+- Loads container images
+- Starts Docker Compose
+
+---
+
+# Verify Installation
+
+Check stack status:
+
+./observability status
+
+Expected containers:
+
+observability-grafana  
+observability-prometheus  
+observability-loki  
+observability-tempo  
+observability-node-exporter  
+observability-caddy  
+
+---
+
+# Access the Services
+
+Grafana  
+http://SERVER_IP:3000
+
+Prometheus  
+http://SERVER_IP:9090
+
+Loki API  
+http://SERVER_IP:3100
+
+Node Exporter metrics  
+http://SERVER_IP:9100/metrics
+
+---
+
+# Default Grafana Credentials
+
+Username: admin  
+Password: admin
+
+You will be prompted to change the password on first login.
+
+---
+
+# Lifecycle Commands
+
+The observability script manages the entire stack.
+
+Install the stack:
+
+sudo ./observability install
+
+Check stack status:
+
+./observability status
+
+Uninstall stack:
+
+sudo ./observability uninstall
+
+This stops containers and removes configuration directories.
+
+Full reset:
+
+sudo ./observability reset
+
+This removes containers, images, networks, and persistent data.
+
+---
+
+# Troubleshooting
+
+Grafana Restarting
+
+Check logs:
+
+docker logs observability-grafana
+
+Verify directory permissions:
+
+/var/lib/observability/grafana
+
+---
+
+Tempo Restarting
+
+Ensure configuration file exists:
+
+/opt/observability/tempo.yaml
+
+Restart stack:
+
+docker compose -f /opt/observability/docker-compose.yml restart
+
+---
+
+SELinux Issues (Rocky Linux / RHEL)
+
+Check status:
+
+getenforce
+
+If enforcing:
+
+sudo chcon -Rt svirt_sandbox_file_t /var/lib/observability
 
 ---
 
 # Quick Reference
 
-## 1️⃣ Build the Air-Gap Package (Online System)
+Build package
 
-Run the package builder:
-
-```bash
-chmod +x build-airgap-package.sh
 sudo ./build-airgap-package.sh
-```
 
-This will:
+Install stack
 
-- install Docker if missing
-- pull required container images
-- export images into a bundle
-- assemble the deployment package
+sudo ./observability install
 
-Output file:
+Check status
 
-```
-observability-airgap-package.tar
-```
+./observability status
 
----
+Uninstall stack
 
-## 2️⃣ Transfer Package to Air-Gap Environment
+sudo ./observability uninstall
 
-Copy the package to the offline system using secure media or file transfer.
+Full reset
 
----
-
-## 3️⃣ Extract the Package
-
-```bash
-tar -xvf observability-airgap-package.tar
-cd observability-airgap-package
-```
-
----
-
-## 4️⃣ Install the Stack
-
-Run the installer:
-
-```bash
-chmod +x Airgap-Observability-Installer.sh
-sudo ./Airgap-Observability-Installer.sh
-```
-
-The installer automatically:
-
-- verifies Docker
-- verifies Docker Compose
-- loads container images if needed
-- creates required directories
-- installs stack configuration
-- launches the observability stack
-
----
-
-## 5️⃣ Access Grafana
-
-After installation completes:
-
-```
-https://monitor.local
-```
-
-or
-
-```
-http://SERVER_IP:3000
-```
-
-Default login:
-
-```
-username: admin
-password: admin
-```
-
-Change the password after first login.
-
----
-
-# Package Contents
-
-```
-observability-airgap-package
-│
-├── Airgap-Observability-Installer.sh
-├── docker-compose.yml
-├── prometheus.yml
-├── Caddyfile
-│
-├── images
-│   └── observability-images.tar
-│
-└── README.md
-```
+sudo ./observability reset
 
 ---
 
 # System Requirements
 
-Recommended host system:
+Docker  
+Docker Compose v2  
+Linux host (Rocky, RHEL, Ubuntu, Debian)
 
-| Resource | Minimum |
-|--------|--------|
-| CPU | 2 cores |
-| RAM | 4 GB |
-| Disk | 20 GB |
+Recommended minimum resources:
 
-Supported OS:
-
-- Rocky Linux
-- AlmaLinux
-- RHEL
-- Ubuntu
-- Debian
-- Any Linux distribution capable of running Docker
+CPU: 2 cores  
+RAM: 4 GB  
+Disk: 20 GB
 
 ---
 
 # Directory Layout
 
-Stack configuration:
+/opt/observability  
+    docker-compose.yml  
+    prometheus.yml  
+    Caddyfile  
+    tempo.yaml  
 
-```
-/opt/observability
-│
-├── docker-compose.yml
-├── prometheus.yml
-└── Caddyfile
-```
-
-Persistent data:
-
-```
-/var/lib/observability
-│
-├── grafana
-├── prometheus
-├── loki
-└── tempo
-```
+/var/lib/observability  
+    grafana  
+    prometheus  
+    loki  
+    tempo  
 
 ---
 
-# Managing the Stack
+# Security Considerations
 
-Start services:
+This deployment is designed for isolated networks.
 
-```bash
-docker compose -f /opt/observability/docker-compose.yml up -d
-```
+For production environments consider:
 
-Stop services:
-
-```bash
-docker compose -f /opt/observability/docker-compose.yml down
-```
-
-Restart services:
-
-```bash
-docker compose -f /opt/observability/docker-compose.yml restart
-```
-
-View logs:
-
-```bash
-docker compose -f /opt/observability/docker-compose.yml logs
-```
-
----
-
-# Updating the Stack
-
-Because the environment is air-gapped:
-
-1. Pull new container images on a connected system
-2. Build a new package using the builder script
-3. Transfer the new package to the offline system
-4. Reinstall or update the deployment
-
----
-
-# Security Recommendations
-
-For secure environments:
-
-- change default Grafana credentials
-- restrict network access to monitoring services
-- use internal DNS for `monitor.local`
-- integrate with internal PKI if available
-- segment monitoring traffic from production networks
-
----
-
-# Example Monitoring Use Cases
-
-This observability stack works well for monitoring:
-
-- network infrastructure
-- telemetry pipelines
-- SDR systems
-- container workloads
-- distributed services
-- edge compute nodes
-- RF communication networks
+- TLS certificates
+- Grafana authentication providers
+- role-based access control
+- hardened reverse proxy configuration
 
 ---
 
 # License
+
+Internal deployment tool.

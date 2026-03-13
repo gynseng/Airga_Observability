@@ -22,22 +22,16 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 ########################################
-# Check Docker
+# Verify Docker
 ########################################
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "ERROR: Docker is not installed."
-  echo "Install Docker before running this installer."
   exit 1
 fi
 
-########################################
-# Check Docker Compose
-########################################
-
 if ! docker compose version >/dev/null 2>&1; then
-  echo "ERROR: Docker Compose v2 not found."
-  echo "Install Docker Compose plugin."
+  echo "ERROR: Docker Compose v2 not installed."
   exit 1
 fi
 
@@ -45,7 +39,7 @@ fi
 # Load Images if Needed
 ########################################
 
-echo "Checking required images..."
+echo "Checking container images..."
 
 REQUIRED_IMAGES=(
 grafana/grafana
@@ -67,22 +61,17 @@ do
 done
 
 if [ "$MISSING" = true ]; then
-    echo ""
-    echo "Loading container images from bundle..."
-
     if [ ! -f "$IMAGE_BUNDLE" ]; then
-        echo "ERROR: Image bundle not found:"
-        echo "$IMAGE_BUNDLE"
+        echo "ERROR: Image bundle not found: $IMAGE_BUNDLE"
         exit 1
     fi
 
+    echo "Loading container images..."
     docker load -i "$IMAGE_BUNDLE"
 fi
 
-echo "All images present."
-
 ########################################
-# Validate Configuration Files
+# Validate stack files
 ########################################
 
 FILES=(
@@ -100,11 +89,10 @@ do
 done
 
 ########################################
-# Create Directories
+# Create directories
 ########################################
 
-echo ""
-echo "Creating directories..."
+echo "Creating data directories..."
 
 mkdir -p "$STACK_DIR"
 mkdir -p "$DATA_DIR/grafana"
@@ -113,7 +101,52 @@ mkdir -p "$DATA_DIR/loki"
 mkdir -p "$DATA_DIR/tempo"
 
 ########################################
-# Copy Stack Files
+# Fix container UID ownership
+########################################
+
+echo "Fixing container permissions..."
+
+chown -R 472:472 "$DATA_DIR/grafana"
+chown -R 65534:65534 "$DATA_DIR/prometheus"
+chown -R 10001:10001 "$DATA_DIR/loki"
+chown -R 10001:10001 "$DATA_DIR/tempo"
+
+chmod -R 755 "$DATA_DIR"
+
+########################################
+# Create Tempo config if missing
+########################################
+
+if [ ! -f "$STACK_DIR/tempo.yaml" ]; then
+echo "Creating Tempo configuration..."
+
+cat <<EOF > "$STACK_DIR/tempo.yaml"
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+        grpc:
+
+ingester:
+  trace_idle_period: 10s
+  max_block_bytes: 1_000_000
+  max_block_duration: 5m
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+EOF
+
+fi
+
+########################################
+# Copy stack configuration
 ########################################
 
 echo "Installing stack configuration..."
@@ -123,10 +156,20 @@ cp prometheus.yml "$STACK_DIR/"
 cp Caddyfile "$STACK_DIR/"
 
 ########################################
-# Start Stack
+# SELinux compatibility
 ########################################
 
-echo ""
+if command -v getenforce >/dev/null 2>&1; then
+    if [ "$(getenforce)" = "Enforcing" ]; then
+        echo "SELinux detected, applying container labels..."
+        chcon -Rt svirt_sandbox_file_t "$DATA_DIR"
+    fi
+fi
+
+########################################
+# Launch stack
+########################################
+
 echo "Starting observability stack..."
 
 cd "$STACK_DIR"
@@ -134,7 +177,7 @@ cd "$STACK_DIR"
 docker compose up -d
 
 ########################################
-# Success Output
+# Display status
 ########################################
 
 IP=$(hostname -I | awk '{print $1}')
@@ -145,12 +188,15 @@ echo " Observability Stack Installed"
 echo "----------------------------------------"
 echo ""
 echo "Grafana:"
-echo ""
-echo "https://monitor.local"
-echo "or"
 echo "http://$IP:3000"
 echo ""
-echo "username: admin"
-echo "password: admin"
+echo "Prometheus:"
+echo "http://$IP:9090"
+echo ""
+echo "Loki:"
+echo "http://$IP:3100"
+echo ""
+echo "Node Exporter:"
+echo "http://$IP:9100/metrics"
 echo ""
 echo "----------------------------------------"
