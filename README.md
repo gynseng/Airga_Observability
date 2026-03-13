@@ -1,19 +1,19 @@
 # Air-Gap Observability Stack
 
-A **single-command installer** that deploys a complete monitoring and observability stack designed specifically for **air-gapped environments**.
+This project provides a **portable observability stack designed for air-gapped environments**.
 
-This stack deploys a full local monitoring platform using Docker containers with persistent storage and internal networking.
+The deployment bundle contains everything required to install and run the monitoring platform without internet connectivity.
 
-## Stack Components
+The stack includes:
 
-- Grafana — dashboards and visualization
-- Prometheus — metrics collection and monitoring
-- Loki — log aggregation
-- Tempo — distributed tracing
-- Node Exporter — host system metrics
-- Caddy — reverse proxy with internal TLS
+- Grafana – dashboards and visualization
+- Prometheus – metrics collection and monitoring
+- Loki – log aggregation
+- Tempo – distributed tracing
+- Node Exporter – host metrics
+- Caddy – reverse proxy with internal TLS
 
-All services are deployed locally and do **not require internet access once container images are loaded**.
+All services run as **Docker containers with persistent storage**.
 
 ---
 
@@ -34,26 +34,26 @@ Prometheus
    └── Node Exporter
 ```
 
-All services communicate using the **internal Docker network**.
+All services communicate over an **internal Docker network**.
 
 ---
 
-# Features
+# Key Features
 
-- Single command installation
-- Designed for air-gapped environments
-- Local TLS support via Caddy
+- Single-script installation
+- Designed for air-gapped networks
+- Docker-based deployment
+- Automatic dependency validation
+- Automatic container image loading
+- Internal TLS support
 - Persistent storage
-- Docker containerized services
 - Minimal resource usage
-- Production-ready configuration
-- No external dependencies after image load
 
 ---
 
 # System Requirements
 
-Recommended host system:
+Recommended host specifications:
 
 | Resource | Minimum |
 |--------|--------|
@@ -61,97 +61,93 @@ Recommended host system:
 | RAM | 4 GB |
 | Disk | 20 GB |
 
-Supported OS:
+Supported operating systems:
 
 - Ubuntu
 - Debian
 - Rocky Linux
 - AlmaLinux
 - RHEL
-- Other modern Linux distributions with Docker
+- Any modern Linux distribution capable of running Docker
 
 ---
 
-# Required Docker Images
+# Air-Gap Package Contents
 
-The following images must be present locally before running the installer:
+After building the deployment package, the structure will look like:
 
 ```
-grafana/grafana
-prom/prometheus
-grafana/loki
-grafana/tempo
-prom/node-exporter
-caddy
-```
-
----
-
-# Preparing Images for Air-Gap Deployment
-
-On a machine with internet access:
-
-```bash
-docker pull grafana/grafana
-docker pull prom/prometheus
-docker pull grafana/loki
-docker pull grafana/tempo
-docker pull prom/node-exporter
-docker pull caddy
-```
-
-Export the images:
-
-```bash
-docker save -o observability-images.tar \
-grafana/grafana \
-prom/prometheus \
-grafana/loki \
-grafana/tempo \
-prom/node-exporter \
-caddy
-```
-
-Transfer the archive to the air-gapped system.
-
-Load the images:
-
-```bash
-docker load -i observability-images.tar
+observability-airgap-package
+│
+├── Airgap-Observability-Installer.sh
+├── docker-compose.yml
+├── prometheus.yml
+├── Caddyfile
+│
+├── images
+│   └── observability-images.tar
+│
+└── README.md
 ```
 
 ---
 
-# Installation
+# Building the Air-Gap Package
+
+On a machine **with internet access**, build the package using the package builder:
+
+```
+./build-airgap-package.sh
+```
+
+This script will:
+
+1. Pull required container images
+2. Export the images into a bundle
+3. Assemble the deployment package
+4. Create a portable archive
+
+Output file:
+
+```
+observability-airgap-package.tar
+```
+
+---
+
+# Deploying in an Air-Gapped Environment
+
+Transfer the package into the isolated environment.
+
+Extract the package:
+
+```
+tar -xvf observability-airgap-package.tar
+cd observability-airgap-package
+```
 
 Run the installer:
 
-```bash
-curl -fsSL https://install.observability.sh | sudo bash
+```
+chmod +x Airgap-Observability-Installer.sh
+sudo ./Airgap-Observability-Installer.sh
 ```
 
-Optional parameters:
+The installer automatically:
 
-```
---domain <domain>          default: monitor.local
---grafana-port <port>      default: 3000
---random-password          generate random admin password
-```
-
-Example installation:
-
-```bash
-curl -fsSL https://install.observability.sh | sudo bash -s -- \
-  --domain monitoring.local \
-  --grafana-port 3000 \
-  --random-password
-```
+- verifies Docker is installed
+- verifies Docker Compose is installed
+- checks required container images
+- loads images from the bundle if needed
+- validates configuration files
+- creates persistent storage directories
+- deploys the observability stack
 
 ---
 
 # Accessing Grafana
 
-After installation, Grafana can be accessed at:
+After installation completes:
 
 ```
 https://monitor.local
@@ -170,21 +166,25 @@ username: admin
 password: admin
 ```
 
-If the `--random-password` option is used, the generated password will be printed after installation.
+It is recommended to **change the password after first login**.
 
 ---
 
 # Directory Layout
 
+Deployment configuration:
+
 ```
 /opt/observability
 │
 ├── docker-compose.yml
-├── Caddyfile
 ├── prometheus.yml
-│
-└── configs
+└── Caddyfile
+```
 
+Persistent data:
+
+```
 /var/lib/observability
 │
 ├── grafana
@@ -199,25 +199,25 @@ If the `--random-password` option is used, the generated password will be printe
 
 Start services:
 
-```bash
+```
 docker compose -f /opt/observability/docker-compose.yml up -d
 ```
 
 Stop services:
 
-```bash
+```
 docker compose -f /opt/observability/docker-compose.yml down
 ```
 
 Restart services:
 
-```bash
+```
 docker compose -f /opt/observability/docker-compose.yml restart
 ```
 
 View logs:
 
-```bash
+```
 docker compose -f /opt/observability/docker-compose.yml logs
 ```
 
@@ -225,74 +225,48 @@ docker compose -f /opt/observability/docker-compose.yml logs
 
 # Updating the Stack
 
-Because the environment is air-gapped, updates must be performed manually.
+Because the deployment environment is air-gapped, updates must be performed manually:
 
-1. Pull updated container images on a connected machine
-2. Export the images
-3. Transfer them to the air-gapped system
-4. Load them with:
-
-```bash
-docker load -i observability-images.tar
-```
-
-Restart the services afterwards.
-
----
-
-# Removing the Stack
-
-Stop the containers:
-
-```bash
-docker compose -f /opt/observability/docker-compose.yml down
-```
-
-Remove configuration and data:
-
-```bash
-rm -rf /opt/observability
-rm -rf /var/lib/observability
-```
+1. Pull updated container images on a connected system
+2. Build a new air-gap package
+3. Transfer the new package
+4. Run the installer again
 
 ---
 
 # Security Recommendations
 
-This stack is intended for **secure or isolated networks**.
+For secure deployments:
 
-Recommended best practices:
-
-- Change the default Grafana password
-- Restrict network access to Grafana
-- Use internal DNS for the monitoring domain
-- Integrate with internal PKI if available
-- Segment monitoring traffic from production networks
+- change default Grafana credentials
+- restrict network access to monitoring services
+- use internal DNS for `monitor.local`
+- integrate with internal PKI if available
+- segment monitoring traffic from production networks
 
 ---
 
-# Example Use Cases
+# Example Monitoring Use Cases
 
 This observability stack is well suited for monitoring:
 
 - network infrastructure
 - SDR platforms
 - telemetry fan-out systems
-- distributed Go services
+- distributed services
 - container platforms
 - edge compute nodes
-- RF and tactical communication networks
+- RF and tactical communication systems
 
 ---
 
 # Future Enhancements
 
-Possible future improvements include:
+Possible extensions include:
 
-- SNMP exporter for network devices
+- SNMP exporter for routers and radios
 - NetFlow or sFlow collectors
 - OpenTelemetry collector
-- Kafka telemetry monitoring
 - Prometheus federation
 - distributed Grafana deployments
 
