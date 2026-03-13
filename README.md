@@ -1,19 +1,17 @@
 # Air-Gap Observability Stack
 
-This project provides a **portable observability stack designed for air-gapped environments**.
+This project provides a **portable observability platform designed for air-gapped environments**.
 
-The deployment bundle contains everything required to install and run the monitoring platform without internet connectivity.
-
-The stack includes:
+The stack deploys a full monitoring environment using Docker containers and includes:
 
 - Grafana – dashboards and visualization
-- Prometheus – metrics collection and monitoring
+- Prometheus – metrics monitoring
 - Loki – log aggregation
 - Tempo – distributed tracing
 - Node Exporter – host metrics
 - Caddy – reverse proxy with internal TLS
 
-All services run as **Docker containers with persistent storage**.
+All services run locally and do **not require internet connectivity after the package is created**.
 
 ---
 
@@ -38,43 +36,93 @@ All services communicate over an **internal Docker network**.
 
 ---
 
-# Key Features
+# Quick Reference
 
-- Single-script installation
-- Designed for air-gapped networks
-- Docker-based deployment
-- Automatic dependency validation
-- Automatic container image loading
-- Internal TLS support
-- Persistent storage
-- Minimal resource usage
+## 1️⃣ Build the Air-Gap Package (Online System)
 
----
+Run the package builder:
 
-# System Requirements
+```bash
+chmod +x build-airgap-package.sh
+sudo ./build-airgap-package.sh
+```
 
-Recommended host specifications:
+This will:
 
-| Resource | Minimum |
-|--------|--------|
-| CPU | 2 cores |
-| RAM | 4 GB |
-| Disk | 20 GB |
+- install Docker if missing
+- pull required container images
+- export images into a bundle
+- assemble the deployment package
 
-Supported operating systems:
+Output file:
 
-- Ubuntu
-- Debian
-- Rocky Linux
-- AlmaLinux
-- RHEL
-- Any modern Linux distribution capable of running Docker
+```
+observability-airgap-package.tar
+```
 
 ---
 
-# Air-Gap Package Contents
+## 2️⃣ Transfer Package to Air-Gap Environment
 
-After building the deployment package, the structure will look like:
+Copy the package to the offline system using secure media or file transfer.
+
+---
+
+## 3️⃣ Extract the Package
+
+```bash
+tar -xvf observability-airgap-package.tar
+cd observability-airgap-package
+```
+
+---
+
+## 4️⃣ Install the Stack
+
+Run the installer:
+
+```bash
+chmod +x Airgap-Observability-Installer.sh
+sudo ./Airgap-Observability-Installer.sh
+```
+
+The installer automatically:
+
+- verifies Docker
+- verifies Docker Compose
+- loads container images if needed
+- creates required directories
+- installs stack configuration
+- launches the observability stack
+
+---
+
+## 5️⃣ Access Grafana
+
+After installation completes:
+
+```
+https://monitor.local
+```
+
+or
+
+```
+http://SERVER_IP:3000
+```
+
+Default login:
+
+```
+username: admin
+password: admin
+```
+
+Change the password after first login.
+
+---
+
+# Package Contents
 
 ```
 observability-airgap-package
@@ -92,87 +140,30 @@ observability-airgap-package
 
 ---
 
-# Building the Air-Gap Package
+# System Requirements
 
-On a machine **with internet access**, build the package using the package builder:
+Recommended host system:
 
-```
-./build-airgap-package.sh
-```
+| Resource | Minimum |
+|--------|--------|
+| CPU | 2 cores |
+| RAM | 4 GB |
+| Disk | 20 GB |
 
-This script will:
+Supported OS:
 
-1. Pull required container images
-2. Export the images into a bundle
-3. Assemble the deployment package
-4. Create a portable archive
-
-Output file:
-
-```
-observability-airgap-package.tar
-```
-
----
-
-# Deploying in an Air-Gapped Environment
-
-Transfer the package into the isolated environment.
-
-Extract the package:
-
-```
-tar -xvf observability-airgap-package.tar
-cd observability-airgap-package
-```
-
-Run the installer:
-
-```
-chmod +x Airgap-Observability-Installer.sh
-sudo ./Airgap-Observability-Installer.sh
-```
-
-The installer automatically:
-
-- verifies Docker is installed
-- verifies Docker Compose is installed
-- checks required container images
-- loads images from the bundle if needed
-- validates configuration files
-- creates persistent storage directories
-- deploys the observability stack
-
----
-
-# Accessing Grafana
-
-After installation completes:
-
-```
-https://monitor.local
-```
-
-or
-
-```
-http://SERVER_IP:3000
-```
-
-Default credentials:
-
-```
-username: admin
-password: admin
-```
-
-It is recommended to **change the password after first login**.
+- Rocky Linux
+- AlmaLinux
+- RHEL
+- Ubuntu
+- Debian
+- Any Linux distribution capable of running Docker
 
 ---
 
 # Directory Layout
 
-Deployment configuration:
+Stack configuration:
 
 ```
 /opt/observability
@@ -199,25 +190,25 @@ Persistent data:
 
 Start services:
 
-```
+```bash
 docker compose -f /opt/observability/docker-compose.yml up -d
 ```
 
 Stop services:
 
-```
+```bash
 docker compose -f /opt/observability/docker-compose.yml down
 ```
 
 Restart services:
 
-```
+```bash
 docker compose -f /opt/observability/docker-compose.yml restart
 ```
 
 View logs:
 
-```
+```bash
 docker compose -f /opt/observability/docker-compose.yml logs
 ```
 
@@ -225,18 +216,18 @@ docker compose -f /opt/observability/docker-compose.yml logs
 
 # Updating the Stack
 
-Because the deployment environment is air-gapped, updates must be performed manually:
+Because the environment is air-gapped:
 
-1. Pull updated container images on a connected system
-2. Build a new air-gap package
-3. Transfer the new package
-4. Run the installer again
+1. Pull new container images on a connected system
+2. Build a new package using the builder script
+3. Transfer the new package to the offline system
+4. Reinstall or update the deployment
 
 ---
 
 # Security Recommendations
 
-For secure deployments:
+For secure environments:
 
 - change default Grafana credentials
 - restrict network access to monitoring services
@@ -248,30 +239,16 @@ For secure deployments:
 
 # Example Monitoring Use Cases
 
-This observability stack is well suited for monitoring:
+This observability stack works well for monitoring:
 
 - network infrastructure
-- SDR platforms
-- telemetry fan-out systems
+- telemetry pipelines
+- SDR systems
+- container workloads
 - distributed services
-- container platforms
 - edge compute nodes
-- RF and tactical communication systems
-
----
-
-# Future Enhancements
-
-Possible extensions include:
-
-- SNMP exporter for routers and radios
-- NetFlow or sFlow collectors
-- OpenTelemetry collector
-- Prometheus federation
-- distributed Grafana deployments
+- RF communication networks
 
 ---
 
 # License
-
-MIT License
