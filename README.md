@@ -80,7 +80,7 @@ Or transfer via removable media.
 
 ---
 
-# Step 3 — Extract the Package
+# Step 3 — Extract the Package [No Need]
 
 On the air-gapped machine:
 
@@ -90,7 +90,7 @@ cd observability-airgap-package
 Directory structure:
 
 observability-airgap-package  
-├── observability  
+├── observability.sh  
 ├── docker-compose.yml  
 ├── prometheus.yml  
 ├── Caddyfile  
@@ -103,7 +103,7 @@ observability-airgap-package
 
 Run the installer:
 
-sudo ./observability install
+sudo bash observability.sh install
 
 The installer automatically:
 
@@ -120,7 +120,7 @@ The installer automatically:
 
 Check stack status:
 
-./observability status
+bash observability.sh status
 
 Expected containers:
 

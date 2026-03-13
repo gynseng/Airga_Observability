@@ -6,12 +6,26 @@ monitor.local {
 
     tls internal
 
-    reverse_proxy grafana:3000
-
     encode gzip
 
+    handle / {
+        reverse_proxy observability-grafana:3000
+    }
+
+    handle_path /prometheus/* {
+        reverse_proxy observability-prometheus:9090
+    }
+
+    handle_path /loki/* {
+        reverse_proxy observability-loki:3100
+    }
+
+    handle_path /tempo/* {
+        reverse_proxy observability-tempo:3200
+    }
+
     header {
-        Strict-Transport-Security "max-age=31536000;"
+        Strict-Transport-Security "max-age=31536000"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
     }

@@ -55,15 +55,44 @@ fi
 mkdir -p "$STACK_DIR"
 mkdir -p "$DATA_DIR"/{grafana,prometheus,loki,tempo}
 
-echo "Setting container permissions..."
+echo "Creating observability data directories..."
 
-chown -R 472:472 "$DATA_DIR/grafana"
-chown -R 65534:65534 "$DATA_DIR/prometheus"
-chown -R 10001:10001 "$DATA_DIR/loki"
-chown -R 10001:10001 "$DATA_DIR/tempo"
+mkdir -p /var/lib/observability/grafana
+mkdir -p /var/lib/observability/prometheus
+mkdir -p /var/lib/observability/loki
+mkdir -p /var/lib/observability/tempo
 
-chmod -R 755 "$DATA_DIR"
+echo "Setting container ownership..."
 
+chown -R 472:472 /var/lib/observability/grafana
+chown -R 65534:65534 /var/lib/observability/prometheus
+chown -R 10001:10001 /var/lib/observability/loki
+chown -R 10001:10001 /var/lib/observability/tempo
+
+chmod -R 755 /var/lib/observability
+
+
+
+########################################
+# Configure monitor.local hostname
+########################################
+
+echo "Configuring monitor.local hostname..."
+
+SERVER_IP=$(hostname -I | awk '{print $1}')
+
+if ! grep -q "monitor.local" /etc/hosts; then
+    echo "$SERVER_IP monitor.local" >> /etc/hosts
+    echo "Added monitor.local -> $SERVER_IP to /etc/hosts"
+else
+    echo "monitor.local already configured"
+fi
+
+
+
+########################################
+# Tempo Configuration
+########################################
 echo "Checking Tempo config..."
 
 if [ ! -f "$STACK_DIR/tempo.yaml" ]; then

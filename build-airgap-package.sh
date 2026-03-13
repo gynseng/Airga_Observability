@@ -129,7 +129,7 @@ mkdir -p $WORKDIR/package/images
 cp docker-compose.yml $WORKDIR/package/
 cp prometheus.yml $WORKDIR/package/
 cp Caddyfile $WORKDIR/package/
-cp Airgap-Observability-Installer.sh $WORKDIR/package/
+cp observability.sh $WORKDIR/package/
 cp README.md $WORKDIR/package/
 
 mv $WORKDIR/images/observability-images.tar $WORKDIR/package/images/

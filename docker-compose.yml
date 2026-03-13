@@ -27,8 +27,7 @@ services:
     container_name: observability-grafana
     restart: unless-stopped
     volumes:
-      - /var/lib/observability/grafana:/var/lib/grafana
-      - ./configs/grafana:/etc/grafana/provisioning
+      - /var/lib/observability/grafana:/var/lib/grafana:Z
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -51,7 +50,6 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=30d"
     networks:
       - observability
     ports:
@@ -76,7 +74,7 @@ services:
     container_name: observability-loki
     restart: unless-stopped
     volumes:
-      - /var/lib/observability/loki:/loki
+      - /var/lib/observability/loki:/loki:Z
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - observability
@@ -88,7 +86,8 @@ services:
     container_name: observability-tempo
     restart: unless-stopped
     volumes:
-      - /var/lib/observability/tempo:/var/tempo
+      - /var/lib/observability/tempo:/var/tempo:Z
+      - ./tempo.yaml:/etc/tempo.yaml:Z
     command: ["-config.file=/etc/tempo.yaml"]
     networks:
       - observability
