@@ -1,0 +1,96 @@
+version: "3.8"
+
+networks:
+  observability:
+    driver: bridge
+
+services:
+
+  caddy:
+    image: caddy
+    container_name: observability-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./data/caddy:/data
+      - ./data/caddy_config:/config
+    networks:
+      - observability
+    depends_on:
+      - grafana
+
+  grafana:
+    image: grafana/grafana
+    container_name: observability-grafana
+    restart: unless-stopped
+    volumes:
+      - /var/lib/observability/grafana:/var/lib/grafana
+      - ./configs/grafana:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus
+    container_name: observability-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - /var/lib/observability/prometheus:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    networks:
+      - observability
+    ports:
+      - "9090:9090"
+
+  node-exporter:
+    image: prom/node-exporter
+    container_name: observability-node-exporter
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    command:
+      - "--path.rootfs=/host"
+    networks:
+      - observability
+    ports:
+      - "9100:9100"
+
+  loki:
+    image: grafana/loki
+    container_name: observability-loki
+    restart: unless-stopped
+    volumes:
+      - /var/lib/observability/loki:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - observability
+    ports:
+      - "3100:3100"
+
+  tempo:
+    image: grafana/tempo
+    container_name: observability-tempo
+    restart: unless-stopped
+    volumes:
+      - /var/lib/observability/tempo:/var/tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    networks:
+      - observability
+    ports:
+      - "3200:3200"
