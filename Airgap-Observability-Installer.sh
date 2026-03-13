@@ -1,170 +1,156 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
-DOMAIN="monitor.local"
-PORT=3000
 STACK_DIR="/opt/observability"
 DATA_DIR="/var/lib/observability"
+IMAGE_BUNDLE="images/observability-images.tar"
 
-banner() {
-echo "--------------------------------"
-echo " Airgap Observability Installer"
-echo "--------------------------------"
-}
+echo ""
+echo "----------------------------------------"
+echo " Airgap Observability Stack Installer"
+echo "----------------------------------------"
+echo ""
 
-parse_args() {
-while [[ $# -gt 0 ]]; do
-case "$1" in
---domain)
-DOMAIN="$2"
-shift 2
-;;
---grafana-port)
-PORT="$2"
-shift 2
-;;
---random-password)
-ADMIN_PASS=$(openssl rand -base64 12)
-shift
-;;
-*)
-echo "Unknown option $1"
-exit 1
-;;
-esac
-done
-}
+########################################
+# Root Check
+########################################
 
-install_docker() {
-
-if ! command -v docker >/dev/null; then
-echo "Installing Docker"
-curl -fsSL https://get.docker.com | sh
-systemctl enable docker
-systemctl start docker
+if [[ $EUID -ne 0 ]]; then
+  echo "Please run as root or with sudo"
+  exit 1
 fi
-}
 
-create_dirs() {
+########################################
+# Check Docker
+########################################
 
-mkdir -p $STACK_DIR
-mkdir -p $DATA_DIR/{grafana,prometheus,loki,tempo}
-}
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: Docker is not installed."
+  echo "Install Docker before running this installer."
+  exit 1
+fi
 
-write_prometheus() {
+########################################
+# Check Docker Compose
+########################################
 
-cat <<EOF > $STACK_DIR/prometheus.yml
-global:
-  scrape_interval: 15s
+if ! docker compose version >/dev/null 2>&1; then
+  echo "ERROR: Docker Compose v2 not found."
+  echo "Install Docker Compose plugin."
+  exit 1
+fi
 
-scrape_configs:
+########################################
+# Load Images if Needed
+########################################
 
-  - job_name: node
-    static_configs:
-      - targets: ['node-exporter:9100']
-EOF
-}
+echo "Checking required images..."
 
-write_caddy() {
+REQUIRED_IMAGES=(
+grafana/grafana
+prom/prometheus
+grafana/loki
+grafana/tempo
+prom/node-exporter
+caddy
+)
 
-cat <<EOF > $STACK_DIR/Caddyfile
-$DOMAIN {
+MISSING=false
 
-reverse_proxy grafana:3000
+for img in "${REQUIRED_IMAGES[@]}"
+do
+    if ! docker image inspect "$img" >/dev/null 2>&1; then
+        echo "Missing image: $img"
+        MISSING=true
+    fi
+done
 
-tls internal
-}
-EOF
-}
+if [ "$MISSING" = true ]; then
+    echo ""
+    echo "Loading container images from bundle..."
 
-write_compose() {
+    if [ ! -f "$IMAGE_BUNDLE" ]; then
+        echo "ERROR: Image bundle not found:"
+        echo "$IMAGE_BUNDLE"
+        exit 1
+    fi
 
-cat <<EOF > $STACK_DIR/docker-compose.yml
-version: "3"
+    docker load -i "$IMAGE_BUNDLE"
+fi
 
-services:
+echo "All images present."
 
-  caddy:
-    image: caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-    restart: unless-stopped
+########################################
+# Validate Configuration Files
+########################################
 
-  grafana:
-    image: grafana/grafana
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=$ADMIN_PASS
-    volumes:
-      - $DATA_DIR/grafana:/var/lib/grafana
-    restart: unless-stopped
+FILES=(
+docker-compose.yml
+prometheus.yml
+Caddyfile
+)
 
-  prometheus:
-    image: prom/prometheus
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - $DATA_DIR/prometheus:/prometheus
-    restart: unless-stopped
+for f in "${FILES[@]}"
+do
+    if [ ! -f "$f" ]; then
+        echo "ERROR: Missing required file: $f"
+        exit 1
+    fi
+done
 
-  node-exporter:
-    image: prom/node-exporter
-    restart: unless-stopped
+########################################
+# Create Directories
+########################################
 
-  loki:
-    image: grafana/loki
-    volumes:
-      - $DATA_DIR/loki:/loki
-    restart: unless-stopped
+echo ""
+echo "Creating directories..."
 
-  tempo:
-    image: grafana/tempo
-    volumes:
-      - $DATA_DIR/tempo:/var/tempo
-    restart: unless-stopped
-EOF
-}
+mkdir -p "$STACK_DIR"
+mkdir -p "$DATA_DIR/grafana"
+mkdir -p "$DATA_DIR/prometheus"
+mkdir -p "$DATA_DIR/loki"
+mkdir -p "$DATA_DIR/tempo"
 
-start_stack() {
+########################################
+# Copy Stack Files
+########################################
 
-cd $STACK_DIR
+echo "Installing stack configuration..."
+
+cp docker-compose.yml "$STACK_DIR/"
+cp prometheus.yml "$STACK_DIR/"
+cp Caddyfile "$STACK_DIR/"
+
+########################################
+# Start Stack
+########################################
+
+echo ""
+echo "Starting observability stack..."
+
+cd "$STACK_DIR"
+
 docker compose up -d
-}
 
-success() {
+########################################
+# Success Output
+########################################
 
 IP=$(hostname -I | awk '{print $1}')
 
 echo ""
-echo "--------------------------------"
-echo "Observability Stack Installed"
+echo "----------------------------------------"
+echo " Observability Stack Installed"
+echo "----------------------------------------"
 echo ""
-echo "Grafana URL:"
-echo "https://$DOMAIN"
+echo "Grafana:"
+echo ""
+echo "https://monitor.local"
 echo "or"
-echo "http://$IP:$PORT"
+echo "http://$IP:3000"
 echo ""
-echo "user: admin"
-echo "pass: $ADMIN_PASS"
-echo "--------------------------------"
-}
-
-main() {
-
-ADMIN_PASS="admin"
-
-banner
-parse_args "$@"
-
-install_docker
-create_dirs
-write_prometheus
-write_caddy
-write_compose
-start_stack
-success
-
-}
-
-main "$@"
+echo "username: admin"
+echo "password: admin"
+echo ""
+echo "----------------------------------------"
